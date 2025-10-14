@@ -1,6 +1,9 @@
+import streamlit as st
 import json
 import re
 from urllib.parse import urlparse
+import pandas as pd
+from datetime import datetime
 
 def extract_urls(obj):
     """Recursively extract all URLs from a nested dictionary, list, or string."""
@@ -66,11 +69,50 @@ def process_data(raw_input):
         "unique_domains": list(unique_domains)
     }
 
-# === EXAMPLE USAGE ===
-
-# Paste your raw input data here (can be JSON or plain text)
-raw_input_data = """
-{
+def main():
+    # Configure the page
+    st.set_page_config(
+        page_title="URL Extractor Pro",
+        page_icon="🔗",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+    
+    # Header
+    st.title("🔗 Universal URL Extractor")
+    st.markdown("Extract URLs, domains, and stream links from JSON data or plain text")
+    
+    # Sidebar with instructions
+    with st.sidebar:
+        st.header("ℹ️ Instructions")
+        st.markdown("""
+        **How to use:**
+        1. Paste your JSON data or plain text in the input area
+        2. Click 'Extract URLs' to process
+        3. View results in organized sections
+        4. Download results as needed
+        
+        **Supported formats:**
+        - JSON with nested structures
+        - Plain text with URLs
+        - Mixed content with stream URLs
+        """)
+        
+        st.header("📊 Features")
+        st.markdown("""
+        - ✅ Extract all URLs recursively
+        - ✅ Normalize protocol-relative URLs
+        - ✅ Identify stream URLs specifically
+        - ✅ Extract unique domains
+        - ✅ Beautiful visual presentation
+        - ✅ Export capabilities
+        """)
+    
+    # Input section
+    st.subheader("📥 Input Data")
+    
+    # Example data for quick testing
+    example_data = """{
     "hat.": "",
     "links": 53,
     "added": "2015-03-02T06:28:25.000Z",
@@ -91,37 +133,135 @@ raw_input_data = """
         {"stream": "https://streamtape.com/e/6kyOqG93aou9XKM"},
         {"stream": "https://dl.streamcloud.club/files/movies/480p/6195193258607cdfb9fa35e9.mp4"}
     ]
-}
-"""
+}"""
+    
+    # Input text area with example
+    input_text = st.text_area(
+        "Paste your JSON data or text here:",
+        value=example_data,
+        height=300,
+        placeholder="Paste your JSON data or any text containing URLs here..."
+    )
+    
+    # Process button
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        process_btn = st.button("🚀 Extract URLs", type="primary", use_container_width=True)
+    
+    if process_btn:
+        if not input_text.strip():
+            st.error("❌ Please enter some data to process.")
+            return
+            
+        with st.spinner("🔄 Processing your data..."):
+            try:
+                # Process the data
+                results = process_data(input_text)
+                
+                # Display results in a nice layout
+                st.success("✅ Extraction completed successfully!")
+                
+                # Summary cards
+                st.subheader("📊 Summary")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("Total URLs Found", results["total_urls_found"])
+                with col2:
+                    st.metric("Stream URLs", results["total_stream_urls"])
+                with col3:
+                    st.metric("Unique Domains", results["total_unique_domains"])
+                
+                # Unique Domains section
+                st.subheader("🌐 Unique Domains")
+                if results["unique_domains"]:
+                    domains_df = pd.DataFrame({
+                        'Domain': results["unique_domains"]
+                    })
+                    st.dataframe(domains_df, use_container_width=True, hide_index=True)
+                    
+                    # Display as badges
+                    st.write("**Quick View:**")
+                    cols = st.columns(4)
+                    for i, domain in enumerate(results["unique_domains"]):
+                        with cols[i % 4]:
+                            st.markdown(f"🔹 `{domain}`")
+                else:
+                    st.info("No domains found in the input data.")
+                
+                # Unique URLs section
+                st.subheader("🔗 All Unique URLs")
+                if results["unique_urls"]:
+                    urls_df = pd.DataFrame({
+                        'URL': results["unique_urls"]
+                    })
+                    st.dataframe(urls_df, use_container_width=True, hide_index=True)
+                    
+                    # Show count by type
+                    http_urls = [url for url in results["unique_urls"] if url.startswith('http://')]
+                    https_urls = [url for url in results["unique_urls"] if url.startswith('https://')]
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("HTTPS URLs", len(https_urls))
+                    with col2:
+                        st.metric("HTTP URLs", len(http_urls))
+                else:
+                    st.info("No URLs found in the input data.")
+                
+                # Stream URLs section
+                st.subheader("🎥 Stream URLs")
+                if results["unique_stream_urls"]:
+                    streams_df = pd.DataFrame({
+                        'Stream URL': results["unique_stream_urls"]
+                    })
+                    st.dataframe(streams_df, use_container_width=True, hide_index=True)
+                    
+                    # Stream URL analysis
+                    stream_domains = [extract_domain(url) for url in results["unique_stream_urls"]]
+                    domain_count = pd.Series(stream_domains).value_counts()
+                    
+                    st.write("**Stream URLs by Domain:**")
+                    for domain, count in domain_count.items():
+                        st.write(f"- `{domain}`: {count} URLs")
+                else:
+                    st.info("No stream URLs found. Make sure your JSON has a 'streams' array.")
+                
+                # Export section
+                st.subheader("📤 Export Results")
+                
+                # JSON export
+                json_data = json.dumps(results, indent=2)
+                st.download_button(
+                    label="📥 Download as JSON",
+                    data=json_data,
+                    file_name=f"url_extraction_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json"
+                )
+                
+                # CSV export for URLs
+                if results["unique_urls"]:
+                    csv_data = pd.DataFrame({'URLs': results["unique_urls"]}).to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download URLs as CSV",
+                        data=csv_data,
+                        file_name=f"urls_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                
+                # Raw results expander
+                with st.expander("📋 View Raw Results"):
+                    st.json(results)
+                    
+            except Exception as e:
+                st.error(f"❌ An error occurred during processing: {str(e)}")
+    
+    # Footer
+    st.markdown("---")
+    st.markdown(
+        "**URL Extractor Pro** • Extract URLs from any structured or unstructured data • "
+        "Built with Streamlit"
+    )
 
-# Run the processing
-results = process_data(raw_input_data)
-
-# Print counts
-print("📌 Total unique URLs found:", results["total_urls_found"])
-print("📌 Total unique stream URLs:", results["total_stream_urls"])
-print("📌 Total unique domains:", results["total_unique_domains"])
-
-# Print Unique Domains
-print("\n🌐 Unique Domains:")
-if results["unique_domains"]:
-    for domain in results["unique_domains"]:
-        print("-", domain)
-else:
-    print("- (None found)")
-
-# Print Unique URLs
-print("\n🔗 Unique URLs:")
-if results["unique_urls"]:
-    for url in results["unique_urls"]:
-        print("-", url)
-else:
-    print("- (None found)")
-
-# Print Unique Stream URLs
-print("\n🎥 Unique Stream URLs:")
-if results["unique_stream_urls"]:
-    for url in results["unique_stream_urls"]:
-        print("-", url)
-else:
-    print("- (None found)")
+if __name__ == "__main__":
+    main()
