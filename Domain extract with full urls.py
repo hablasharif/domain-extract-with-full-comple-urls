@@ -17,7 +17,7 @@ def extract_urls(obj):
             urls.extend(extract_urls(value))
     elif isinstance(obj, list):
         for item in obj:
-            url.extend(extract_urls(item))
+            urls.extend(extract_urls(item))  # Fixed: changed 'url' to 'urls'
     elif isinstance(obj, str):
         urls.extend(re.findall(r'https?:\/\/[^\s"\'<>]+|\/\/[^\s"\'<>]+', obj))
 
@@ -141,7 +141,7 @@ def generate_html_report(urls_data, filename):
             }}
             .url-header {{
                 display: flex;
-                justify-content: between;
+                justify-content: space-between;
                 align-items: center;
                 margin-bottom: 10px;
             }}
@@ -562,6 +562,13 @@ def main():
                             os.remove(html_filename)
                         except:
                             pass
+                    else:
+                        st.button(
+                            "📊 Download HTML Report",
+                            disabled=True,
+                            help="Enable 'Fetch URL details' to generate HTML report",
+                            use_container_width=True
+                        )
                 
                 # Raw results expander
                 with st.expander("📋 View Raw Results"):
